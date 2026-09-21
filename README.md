@@ -9,13 +9,13 @@ The core mechanic is a QR code at the door: scan to register presence. One deplo
 ## The problem
 
 - **Schools**: teachers track attendance on paper or WhatsApp groups; parents don't know if their child arrived safely.
-- **Workplaces** (alcaldías, SMEs): manual check-in, no reliable hours, lateness, or attendance records.
-- In El Salvador specifically, the state has already deployed the hardware and connectivity — **1.2M+ tablets/laptops** to students and **fiber + Starlink in ~5,200 public schools**. The missing layer is the operational software that runs on top of that infrastructure. This project is that layer.
+- **Workplaces** (municipalities, SMEs): manual check-in, no reliable hours, lateness, or attendance records.
+- The missing layer in many places is the operational software that runs on top of already-deployed hardware and connectivity — tablets in classrooms, fiber and wireless links in public buildings. This project is that layer.
 
 ## Why serverless
 
 - **~$1/month at real scale**: Lambda + DynamoDB at portfolio/pilot volumes cost cents; the only fixed cost is a hosted zone (Route 53 ~$0.50/mo).
-- **No servers to patch or babysit**: ideal for a solo developer shipping a pilot to one school or one alcaldía.
+- **No servers to patch or babysit**: ideal for a solo developer shipping a pilot to one school or one municipality.
 - **Adaptive capacity**: cheap at zero traffic, still fine if a tenant grows.
 
 ---
@@ -24,7 +24,7 @@ The core mechanic is a QR code at the door: scan to register presence. One deplo
 
 ### Single engine, two verticals
 
-| Capability | School (students) | Workplace (alcaldía/SME) |
+| Capability | School (students) | Workplace (municipality/SME) |
 |---|---|---|
 | QR check-in at the door | ✅ | ✅ |
 | Check-out / hours worked | — | ✅ |
@@ -94,7 +94,7 @@ qr-presence/
 
 | Component | Monthly cost (pilot scale) |
 |---|---|
-| Lambda (22k events/mo, one alcaldía) | ~$0.00 |
+| Lambda (22k events/mo, a small workplace) | ~$0.00 |
 | DynamoDB on-demand | ~$0.01 |
 | API Gateway (HTTP API) | ~$0.01 |
 | S3 + CloudFront | ~$0.00 (within always-free transfer) |
