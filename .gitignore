@@ -1,0 +1,12 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Node
+node_modules/
+dist/
+
+# macOS
+.DS_Store
