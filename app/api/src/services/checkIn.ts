@@ -22,16 +22,9 @@ const fakeQrs: Qr[] = [
   },
 ];
 
-export function checkIn(input: CheckInInput): CheckInResult {
-  // 1. buscar el QR por qrCode en fakeQrs
-  // 2. si no existe → { ok: false, reason: "qr-invalid" }
-  // 3. si no está activo → { ok: false, reason: "qr-inactive" }
-  // 4. si expiró → { ok: false, reason: "qr-expired" }
-  // 5. si pasa todo → crear AttendanceEvent y devolverlo
-
-  // TODO: implementar
-
-  const qrFound = fakeQrs.find((q) => q.data === input.qrCode);
+export function checkIn(input: CheckInInput, qrs: Qr[] = fakeQrs): CheckInResult {
+  // 1. buscar el QR por su contenido
+  const qrFound = qrs.find((q) => q.data === input.qrCode);
 
   if (!qrFound) {
     return { ok: false, reason: "qr-invalid" };
