@@ -64,7 +64,7 @@ flowchart LR
 ```
 
 - **Ingestion & validation**: API Gateway → Lambda. The Lambda validates GPS, applies the tenant policy, and writes the event.
-- **Storage**: DynamoDB single-table design (tenants, participants, events, reports) with TTL for transient data.
+- **Storage**: DynamoDB single-table design (tenants, participants, events, sessions, QR) with TTL for transient data. Reports are aggregations computed on demand, never stored items (see `docs/access_pattern.md`).
 - **Notifications**: SNS pushes "arrived" / "not arrived" to parents or HR.
 - **Delivery**: S3 + CloudFront for the static dashboard, with a custom domain via Route 53 and a free ACM certificate.
 - **Observability**: CloudWatch logs, metric filters, and a cost/error dashboard.
