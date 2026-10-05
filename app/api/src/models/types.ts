@@ -54,6 +54,16 @@ export interface AttendanceEvent {
   gps: { latitude: number; longitude: number };
 }
 
+// A3: sesión abierta — se crea en check-in, se cierra en check-out
+export interface Session {
+  id: string;
+  tenantId: string;
+  participantId: string;
+  locationId: string;
+  checkInAt: string;
+  status: "open" | "closed";
+}
+
 export interface AuditEvent {
   id: string;
   tenantId: string;
