@@ -1,13 +1,19 @@
-import type { Qr, AttendanceEvent, Location, Session } from "../models/types.js";
+import type { AttendanceEvent, Session } from "../models/types.js";
+import type {
+  QrRepository,
+  LocationRepository,
+  SessionRepository,
+  EventRepository,
+} from "../repositories/ports.js";
 import { distanceInMeters } from "../utils/geo.js";
 
-interface CheckInInput {
+export interface CheckInInput {
   qrCode: string; // lo que escaneó
   participantId: string; // quién escanea
   gps: { latitude: number; longitude: number }; // dónde está parado
 }
 
-type CheckInResult =
+export type CheckInResult =
   | { ok: true; event: AttendanceEvent; session: Session }
   | {
       ok: false;
@@ -19,41 +25,18 @@ type CheckInResult =
         | "duplicate-check-in";
     };
 
-// QRs de prueba — hasta que exista el repository
-const fakeQrs: Qr[] = [
-  {
-    id: "qr-1",
-    tenantId: "t-1",
-    locationId: "loc-1",
-    data: "ABC",
-    expiresAt: "2030-01-01T00:00:00Z",
-    active: true,
-  },
-];
+// Dependencias del service — agrupadas en un objeto (evita 4 parámetros sueltos).
+// Depende de las INTERFACES, no de DynamoDB → testeable con fakes en memoria.
+export interface CheckInDeps {
+  qrRepo: QrRepository;
+  locationRepo: LocationRepository;
+  sessionRepo: SessionRepository;
+  eventRepo: EventRepository;
+}
 
-// Locations de prueba — hasta que exista el repository
-const fakeLocations: Location[] = [
-  {
-    id: "loc-1",
-    tenantId: "t-1",
-    name: "Location 1",
-    latitude: 40.7128,
-    longitude: -74.006,
-    radiusMeters: 100,
-  },
-];
-
-// Sesiones de prueba — simula la tabla (en memoria)
-const fakeSessions: Session[] = [];
-
-export function checkIn(
-  input: CheckInInput,
-  qrs: Qr[] = fakeQrs,
-  locations: Location[] = fakeLocations,
-  sessions: Session[] = fakeSessions,
-): CheckInResult {
+export async function checkIn(input: CheckInInput, deps: CheckInDeps): Promise<CheckInResult> {
   // 1. validar el QR (existe, activo, vigente)
-  const qrFound = qrs.find((q) => q.data === input.qrCode);
+  const qrFound = await deps.qrRepo.findByCode(input.qrCode);
 
   if (!qrFound) {
     return { ok: false, reason: "qr-invalid" };
@@ -68,7 +51,7 @@ export function checkIn(
   }
 
   // 2. validar GPS contra la location del QR
-  const location = locations.find((l) => l.id === qrFound.locationId);
+  const location = await deps.locationRepo.findById(qrFound.tenantId, qrFound.locationId);
 
   if (!location) {
     return { ok: false, reason: "qr-invalid" };
@@ -81,9 +64,7 @@ export function checkIn(
   }
 
   // 3. regla de negocio: no podés entrar dos veces sin salir
-  const alreadyIn = sessions.some(
-    (s) => s.participantId === input.participantId && s.status === "open",
-  );
+  const alreadyIn = await deps.sessionRepo.findOpenByParticipant(input.participantId);
 
   if (alreadyIn) {
     return { ok: false, reason: "duplicate-check-in" };
@@ -100,6 +81,7 @@ export function checkIn(
     timestamp: now,
     gps: input.gps,
   };
+  await deps.eventRepo.save(event);
 
   // 5. A3: abrir la sesión (se cierra en check-out)
   const session: Session = {
@@ -110,7 +92,7 @@ export function checkIn(
     checkInAt: now,
     status: "open",
   };
-  sessions.push(session);
+  await deps.sessionRepo.open(session);
 
   return { ok: true, event, session };
 }

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { checkIn } from "../src/services/checkIn.js";
 import type { Qr, Location, Session } from "../src/models/types.js";
+import {
+  InMemoryQrRepository,
+  InMemoryLocationRepository,
+  InMemorySessionRepository,
+  InMemoryEventRepository,
+} from "./fakes/repositories.js";
 
-// GPS de la location loc-1: (40.7128, -74.006) con radio 100m
 const atLocation = { latitude: 40.7128, longitude: -74.006 };
 const tooFar = { latitude: 40.72, longitude: -74.006 }; // ~800m
-
-const baseInput = { qrCode: "ABC", participantId: "p-1", gps: atLocation };
 
 const validQr: Qr = {
   id: "qr-1",
@@ -35,32 +38,49 @@ const location: Location = {
   radiusMeters: 100,
 };
 
+function makeDeps(qrs: Qr[], locations: Location[], sessions: Session[] = []) {
+  return {
+    qrRepo: new InMemoryQrRepository(qrs),
+    locationRepo: new InMemoryLocationRepository(locations),
+    sessionRepo: new InMemorySessionRepository(sessions),
+    eventRepo: new InMemoryEventRepository(),
+  };
+}
+
 describe("checkIn", () => {
-  it("rechaza un QR que no existe", () => {
-    const result = checkIn({ ...baseInput, qrCode: "NO_EXISTE" }, [validQr], [location], []);
+  it("rechaza un QR que no existe", async () => {
+    const deps = makeDeps([validQr], [location]);
+
+    const result = await checkIn({ qrCode: "NO_EXISTE", participantId: "p-1", gps: atLocation }, deps);
 
     expect(result).toEqual({ ok: false, reason: "qr-invalid" });
   });
 
-  it("rechaza un QR inactivo", () => {
-    const result = checkIn({ ...baseInput, qrCode: "INACTIVE" }, [validQr, inactiveQr], [location], []);
+  it("rechaza un QR inactivo", async () => {
+    const deps = makeDeps([validQr, inactiveQr], [location]);
+
+    const result = await checkIn({ qrCode: "INACTIVE", participantId: "p-1", gps: atLocation }, deps);
 
     expect(result).toEqual({ ok: false, reason: "qr-inactive" });
   });
 
-  it("rechaza un QR expirado", () => {
-    const result = checkIn({ ...baseInput, qrCode: "EXPIRED" }, [validQr, expiredQr], [location], []);
+  it("rechaza un QR expirado", async () => {
+    const deps = makeDeps([validQr, expiredQr], [location]);
+
+    const result = await checkIn({ qrCode: "EXPIRED", participantId: "p-1", gps: atLocation }, deps);
 
     expect(result).toEqual({ ok: false, reason: "qr-expired" });
   });
 
-  it("rechaza un check-in fuera del radio GPS", () => {
-    const result = checkIn({ ...baseInput, gps: tooFar }, [validQr], [location], []);
+  it("rechaza un check-in fuera del radio GPS", async () => {
+    const deps = makeDeps([validQr], [location]);
+
+    const result = await checkIn({ qrCode: "ABC", participantId: "p-1", gps: tooFar }, deps);
 
     expect(result).toEqual({ ok: false, reason: "out-of-radius" });
   });
 
-  it("rechaza un segundo check-in si ya hay sesión abierta", () => {
+  it("rechaza un segundo check-in si ya hay sesión abierta", async () => {
     const openSession: Session = {
       id: "s-1",
       tenantId: "t-1",
@@ -69,15 +89,17 @@ describe("checkIn", () => {
       checkInAt: new Date().toISOString(),
       status: "open",
     };
+    const deps = makeDeps([validQr], [location], [openSession]);
 
-    const result = checkIn(baseInput, [validQr], [location], [openSession]);
+    const result = await checkIn({ qrCode: "ABC", participantId: "p-1", gps: atLocation }, deps);
 
     expect(result).toEqual({ ok: false, reason: "duplicate-check-in" });
   });
 
-  it("acepta un check-in válido y abre la sesión", () => {
-    const sessions: Session[] = [];
-    const result = checkIn(baseInput, [validQr], [location], sessions);
+  it("acepta un check-in válido y abre la sesión", async () => {
+    const deps = makeDeps([validQr], [location]);
+
+    const result = await checkIn({ qrCode: "ABC", participantId: "p-1", gps: atLocation }, deps);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -87,7 +109,6 @@ describe("checkIn", () => {
       expect(result.session.status).toBe("open");
       expect(result.session.checkInAt).toBe(result.event.timestamp);
     }
-    // la sesión quedó guardada en el "fake DB"
-    expect(sessions).toHaveLength(1);
+    expect(deps.eventRepo.events).toHaveLength(1);
   });
 });
