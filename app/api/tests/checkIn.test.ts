@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { checkIn } from "../src/services/checkIn.js";
-import type { Qr, Location } from "../src/models/types.js";
+import type { Qr, Location, Session } from "../src/models/types.js";
 
 // GPS de la location loc-1: (40.7128, -74.006) con radio 100m
 const atLocation = { latitude: 40.7128, longitude: -74.006 };
-const farAway = { latitude: 40.7135, longitude: -74.006 }; // ~78m... depende
 const tooFar = { latitude: 40.72, longitude: -74.006 }; // ~800m
 
 const baseInput = { qrCode: "ABC", participantId: "p-1", gps: atLocation };
@@ -38,38 +37,57 @@ const location: Location = {
 
 describe("checkIn", () => {
   it("rechaza un QR que no existe", () => {
-    const result = checkIn({ ...baseInput, qrCode: "NO_EXISTE" }, [validQr], [location]);
+    const result = checkIn({ ...baseInput, qrCode: "NO_EXISTE" }, [validQr], [location], []);
 
     expect(result).toEqual({ ok: false, reason: "qr-invalid" });
   });
 
   it("rechaza un QR inactivo", () => {
-    const result = checkIn({ ...baseInput, qrCode: "INACTIVE" }, [validQr, inactiveQr], [location]);
+    const result = checkIn({ ...baseInput, qrCode: "INACTIVE" }, [validQr, inactiveQr], [location], []);
 
     expect(result).toEqual({ ok: false, reason: "qr-inactive" });
   });
 
   it("rechaza un QR expirado", () => {
-    const result = checkIn({ ...baseInput, qrCode: "EXPIRED" }, [validQr, expiredQr], [location]);
+    const result = checkIn({ ...baseInput, qrCode: "EXPIRED" }, [validQr, expiredQr], [location], []);
 
     expect(result).toEqual({ ok: false, reason: "qr-expired" });
   });
 
   it("rechaza un check-in fuera del radio GPS", () => {
-    const result = checkIn({ ...baseInput, gps: tooFar }, [validQr], [location]);
+    const result = checkIn({ ...baseInput, gps: tooFar }, [validQr], [location], []);
 
     expect(result).toEqual({ ok: false, reason: "out-of-radius" });
   });
 
-  it("acepta un check-in dentro del radio", () => {
-    const result = checkIn({ ...baseInput, gps: atLocation }, [validQr], [location]);
+  it("rechaza un segundo check-in si ya hay sesión abierta", () => {
+    const openSession: Session = {
+      id: "s-1",
+      tenantId: "t-1",
+      participantId: "p-1",
+      locationId: "loc-1",
+      checkInAt: new Date().toISOString(),
+      status: "open",
+    };
+
+    const result = checkIn(baseInput, [validQr], [location], [openSession]);
+
+    expect(result).toEqual({ ok: false, reason: "duplicate-check-in" });
+  });
+
+  it("acepta un check-in válido y abre la sesión", () => {
+    const sessions: Session[] = [];
+    const result = checkIn(baseInput, [validQr], [location], sessions);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.event.participantId).toBe("p-1");
-      expect(result.event.locationId).toBe("loc-1");
       expect(result.event.eventType).toBe("check-in");
       expect(result.event.gps).toEqual(atLocation);
+      expect(result.session.status).toBe("open");
+      expect(result.session.checkInAt).toBe(result.event.timestamp);
     }
+    // la sesión quedó guardada en el "fake DB"
+    expect(sessions).toHaveLength(1);
   });
 });

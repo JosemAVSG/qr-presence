@@ -1,4 +1,4 @@
-import type { Qr, AttendanceEvent, Location } from "../models/types.js";
+import type { Qr, AttendanceEvent, Location, Session } from "../models/types.js";
 import { distanceInMeters } from "../utils/geo.js";
 
 interface CheckInInput {
@@ -8,8 +8,16 @@ interface CheckInInput {
 }
 
 type CheckInResult =
-  | { ok: true; event: AttendanceEvent }
-  | { ok: false; reason: "qr-invalid" | "qr-expired" | "qr-inactive" | "out-of-radius" };
+  | { ok: true; event: AttendanceEvent; session: Session }
+  | {
+      ok: false;
+      reason:
+        | "qr-invalid"
+        | "qr-expired"
+        | "qr-inactive"
+        | "out-of-radius"
+        | "duplicate-check-in";
+    };
 
 // QRs de prueba — hasta que exista el repository
 const fakeQrs: Qr[] = [
@@ -35,12 +43,16 @@ const fakeLocations: Location[] = [
   },
 ];
 
+// Sesiones de prueba — simula la tabla (en memoria)
+const fakeSessions: Session[] = [];
+
 export function checkIn(
   input: CheckInInput,
   qrs: Qr[] = fakeQrs,
   locations: Location[] = fakeLocations,
+  sessions: Session[] = fakeSessions,
 ): CheckInResult {
-  // 1. buscar el QR por su contenido
+  // 1. validar el QR (existe, activo, vigente)
   const qrFound = qrs.find((q) => q.data === input.qrCode);
 
   if (!qrFound) {
@@ -55,7 +67,7 @@ export function checkIn(
     return { ok: false, reason: "qr-expired" };
   }
 
-  // 2. validación GPS: la location del QR + distancia vs radio
+  // 2. validar GPS contra la location del QR
   const location = locations.find((l) => l.id === qrFound.locationId);
 
   if (!location) {
@@ -68,16 +80,37 @@ export function checkIn(
     return { ok: false, reason: "out-of-radius" };
   }
 
-  // 3. si pasa todo → crear el evento con el GPS real
+  // 3. regla de negocio: no podés entrar dos veces sin salir
+  const alreadyIn = sessions.some(
+    (s) => s.participantId === input.participantId && s.status === "open",
+  );
+
+  if (alreadyIn) {
+    return { ok: false, reason: "duplicate-check-in" };
+  }
+
+  // 4. crear el evento de entrada
+  const now = new Date().toISOString();
   const event: AttendanceEvent = {
     id: crypto.randomUUID(),
     tenantId: qrFound.tenantId,
     participantId: input.participantId,
     locationId: qrFound.locationId,
     eventType: "check-in",
-    timestamp: new Date().toISOString(),
+    timestamp: now,
     gps: input.gps,
   };
 
-  return { ok: true, event };
+  // 5. A3: abrir la sesión (se cierra en check-out)
+  const session: Session = {
+    id: crypto.randomUUID(),
+    tenantId: qrFound.tenantId,
+    participantId: input.participantId,
+    locationId: qrFound.locationId,
+    checkInAt: now,
+    status: "open",
+  };
+  sessions.push(session);
+
+  return { ok: true, event, session };
 }
