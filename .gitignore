@@ -3,6 +3,9 @@
 *.tfstate
 *.tfstate.*
 *.tfvars
+crash.log
+*.tfplan
+infra/**/*.zip
 
 # Node
 node_modules/

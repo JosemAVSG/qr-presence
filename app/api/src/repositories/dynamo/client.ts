@@ -1,8 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
-// En local apuntamos a DynamoDB Local; en AWS el endpoint se omite.
-const endpoint = process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8000";
+// Local: apuntamos al emulador floci (un solo entorno para todo).
+// En AWS: dejar DYNAMODB_ENDPOINT vacío para que el SDK resuelva el endpoint real.
+const endpoint = process.env.DYNAMODB_ENDPOINT ?? "http://localhost:4566";
 
 export const TABLE_NAME = process.env.TABLE_NAME ?? "qr-presence";
 

@@ -7,6 +7,7 @@
     "test": "tests"
   },
   "scripts": {
+    "build": "esbuild src/handlers/checkIn.ts src/handlers/checkOut.ts --bundle --platform=node --target=node20 --format=cjs --outdir=dist --external:@aws-sdk/*",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts"
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^26.6.3",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
